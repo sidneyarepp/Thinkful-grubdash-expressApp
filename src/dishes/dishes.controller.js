@@ -1,63 +1,51 @@
 const path = require("path");
 
-// Use the existing order data
-const orders = require(path.resolve("src/data/orders-data"));
+// Use the existing dishes data
+const dishes = require(path.resolve("src/data/dishes-data"));
 
-// Use this function to assigh ID's when necessary
+// Use this function to assign ID's when necessary
 const nextId = require("../utils/nextId");
 
-// TODO: Implement the /orders handlers needed to make the tests pass
-function orderExists(req, res, next) {
-    const { orderId } = req.params;
-    const foundOrder = orders.find(order => order.id === orderId);
-    if (foundOrder) {
-        res.locals.order = foundOrder;
-        next();
-    }
-    next({
-        status: 404,
-        message: `Order with ID of ${orderId} not found.`
-    })
-}
+// TODO: Implement the /dishes handlers needed to make the tests pass
 
-function validateOrderBody(req, res, next) {
-    const { data: { deliverTo, mobileNumber, dishes } } = req.body;
+function validateCreateBody(req, res, next) {
+    const { data: { id, name, description, image_url, price } = {} } = req.body;
+    const { dishId } = req.params
 
-    if (!deliverTo || deliverTo === "") {
+    if (!name || name === "") {
         next({
             status: 400,
-            message: "Order must include a deliverTo"
+            message: "Dish must include a name"
         })
     }
-    if (!mobileNumber || mobileNumber === "") {
+    if (!description || description === "") {
         next({
             status: 400,
-            message: "Order must include a mobileNumber"
+            message: "Dish must include a description"
         })
     }
-    if (!dishes || !Array.isArray(dishes) || !dishes.length) {
+    if (!image_url || image_url === "") {
         next({
             status: 400,
-            message: "Order must include at least one dish"
+            message: "Dish must include a image_url"
         })
     }
-    next()
-}
-
-function validateDishes(req, res, next) {
-    const { data: { dishes } = {} } = req.body;
-    const badDishes = dishes.reduce((badDishesArray, currentDish, index) => {
-        if (!currentDish.quantity || typeof (currentDish.quantity) !== "number" || currentDish.quantity <= 0) {
-            badDishesArray.push(index)
-        }
-        return badDishesArray
-    }, [])
-
-    if (badDishes.length) {
-        const index = badDishes[0]
+    if (!price) {
         next({
             status: 400,
-            message: `Dish ${index} must have a quantity that is an integer greater than 0`
+            message: "Dish must include a price"
+        })
+    }
+    if (price <= 0 || typeof (price) !== "number") {
+        next({
+            status: 400,
+            message: "Dish must have a price that is an integer greater than 0"
+        })
+    }
+    if (dishId && id && dishId !== id) {
+        next({
+            status: 400,
+            message: `id ${dishId} does not match ${id}`
         })
     }
     next()
@@ -65,82 +53,56 @@ function validateDishes(req, res, next) {
 
 
 function create(req, res, next) {
-    const { data: { deliverTo, mobileNumber, status, dishes } = {} } = req.body;
-    const newOrder = {
+    const { data: { name, description, image_url, price } = {} } = req.body;
+    const newDishData = {
         id: nextId(),
-        deliverTo,
-        mobileNumber,
-        status,
-        dishes,
-    }
-    dishes.push(newOrder)
-    res.status(201).json({ data: newOrder })
+        name,
+        description,
+        image_url,
+        price,
+    };
+    dishes.push(newDishData);
+    res.status(201).json({ data: newDishData });
 }
 
+function dishExists(req, res, next) {
+    const { dishId } = req.params;
+    const foundDish = dishes.find(dish => dish.id === dishId);
+    if (foundDish) {
+        res.locals.dish = foundDish;
+        next();
+    }
+    next({
+        status: 404,
+        message: `Dish does not exist: ${dishId}.`
+    })
+}
 
 function read(req, res, next) {
-    res.json({ data: res.locals.order })
+    res.json({ data: res.locals.dish });
 }
 
-function validateUpdateInformation(req, res, next) {
-    const { orderId } = req.params;
-    const { data: { id, status } = {} } = req.body;
-    const validStatuses = ['pending', 'preparing', 'out-for-delivery', 'delivered']
-    if (id && orderId !== id) {
-        next({
-            status: 400,
-            message: `Order id does not match route id. Order: ${id}, Route: ${orderId}.`
-        })
-    }
-    if (!status || status === "" || !validStatuses.includes(status)) {
-        next({
-            status: 400,
-            message: "Order must have a status of pending, preparing, out-for-delivery, delivered"
-        })
-    }
-    if (status === "delivered") {
-        next({
-            status: 400,
-            message: "A delivered order cannot be changed"
-        })
-    }
-    next()
-}
 
 function update(req, res, next) {
-    const orderInfo = res.locals.order;
-    const { data: { id, deliverTo, mobileNumber, dishes } = {} } = req.body;
-
-    if (orderInfo.id !== id || orderInfo.deliverTo !== deliverTo || orderInfo.mobileNumber !== mobileNumber || orderInfo.dishes !== dishes) {
-        orderInfo.deliverTo = deliverTo,
-            orderInfo.mobileNumber = mobileNumber,
-            orderInfo.dishes = dishes
+    const dish = res.locals.dish;
+    const { data: { name, description, image_url, price } = {} } = req.body
+    if (dish.name !== name || dish.description !== description || dish.image_url !== image_url || dish.price !== price) {
+        dish.name = name;
+        dish.description = description;
+        dish.image_url = image_url;
+        dish.price = price;
     }
-    res.json({ data: orderInfo });
+    res.json({ data: dish })
 }
 
-function deleteOrder(req, res, next) {
-    const { orderId } = req.params;
-    const index = orders.findIndex(order => orderId === order.id);
-    const { status } = res.locals.order
-    if (status !== "pending") {
-        next({
-            status: 400,
-            message: "An order cannot be deleted unless it is pending"
-        })
-    }
-    const deletedOrder = orders.splice(index, 1);
-    res.sendStatus(204);
-}
 
-function list(req, res) {
-    res.json({ data: orders })
+function list(req, res, next) {
+    res.json({ data: dishes })
 }
 
 module.exports = {
-    create: [validateOrderBody, validateDishes, create],
-    read: [orderExists, read],
-    update: [orderExists, validateOrderBody, validateDishes, validateUpdateInformation, update],
-    deleteOrder: [orderExists, deleteOrder],
+    create: [validateCreateBody, create],
+    read: [dishExists, read],
+    update: [dishExists, validateCreateBody, update],
     list,
 }

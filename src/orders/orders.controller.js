@@ -41,12 +41,12 @@ function validateOrderBody(req, res, next) {
             message: "Order must include at least one dish"
         })
     }
-    next()
+    res.locals.dishes = dishes;
+    next();
 }
 
 function validateDishes(req, res, next) {
-    const { data: { dishes } = {} } = req.body;
-    const badDishes = dishes.reduce((badDishesArray, currentDish, index) => {
+    const badDishes = res.locals.dishes.reduce((badDishesArray, currentDish, index) => {
         if (!currentDish.quantity || typeof (currentDish.quantity) !== "number" || currentDish.quantity <= 0) {
             badDishesArray.push(index)
         }
@@ -66,6 +66,7 @@ function validateDishes(req, res, next) {
 
 function create(req, res, next) {
     const { data: { deliverTo, mobileNumber, status, dishes } = {} } = req.body;
+    console.log(dishes)
     const newOrder = {
         id: nextId(),
         deliverTo,
@@ -85,13 +86,14 @@ function read(req, res, next) {
 function validateUpdateInformation(req, res, next) {
     const { orderId } = req.params;
     const { data: { id, status } = {} } = req.body;
-    if (orderId !== id) {
+    const validStatuses = ['pending', 'preparing', 'out-for-delivery', 'delivered']
+    if (id && orderId !== id) {
         next({
             status: 400,
             message: `Order id does not match route id. Order: ${id}, Route: ${orderId}.`
         })
     }
-    if (!status || status === "") {
+    if (!status || status === "" || !validStatuses.includes(status)) {
         next({
             status: 400,
             message: "Order must have a status of pending, preparing, out-for-delivery, delivered"
@@ -111,8 +113,7 @@ function update(req, res, next) {
     const { data: { id, deliverTo, mobileNumber, dishes } = {} } = req.body;
 
     if (orderInfo.id !== id || orderInfo.deliverTo !== deliverTo || orderInfo.mobileNumber !== mobileNumber || orderInfo.dishes !== dishes) {
-        orderInfo.id = id,
-            orderInfo.deliverTo = deliverTo,
+        orderInfo.deliverTo = deliverTo,
             orderInfo.mobileNumber = mobileNumber,
             orderInfo.dishes = dishes
     }
